@@ -29,9 +29,15 @@ driver and APO directly, so you can use Sonar's channels without keeping the Ste
 - Administrator rights (the app is elevated: it writes the APO settings in `HKLM` and re-enables the virtual devices).
 - Optional: a virtual audio cable (e.g. "Virtual Audio Cable") for streamer mode.
 
+## Download (portable)
+
+Grab `SonarLite-<version>-portable.zip` from the Releases page, unzip it anywhere and run `sonar-lite.exe` (Windows asks for administrator
+rights). Nothing is installed; settings are kept in `%APPDATA%\SonarLite`. No Visual C++ Redistributable is needed.
+"Start with Windows" registers a scheduled task that points at the exe's current location, so if you move the exe, switch it off and on again.
+
 ## Build
 
-Needs the Rust stable toolchain with the MSVC target.
+Needs the Rust stable toolchain with the MSVC target. `scripts\package.ps1` builds and zips the portable package into `dist\`.
 
 ```powershell
 cargo build --release
