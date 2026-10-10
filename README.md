@@ -42,8 +42,8 @@ What your viewers hear is independent of what you hear.
 <td width="50%" valign="top">
 
 ### Equalizer
-Drag the markers on a Sonar-style graph or type exact gain, frequency and Q. Start from the built-in presets, add Bass / Voice /
-Treble, and keep up to 10 presets of your own for every channel.
+Drag the markers on a Sonar-style graph or type exact gain, frequency and Q.
+Add Bass / Voice / Treble, and keep up to 10 presets of your own for every channel.
 
 </td>
 <td width="50%"><img src="docs/eq.png" alt="Equalizer"></td>
@@ -52,7 +52,7 @@ Treble, and keep up to 10 presets of your own for every channel.
 <td width="50%"><img src="docs/mic.png" alt="Microphone chain"></td>
 <td width="50%" valign="top">
 
-### Microphone chain
+### Microphone
 Noise reduction, a noise gate that finds its own threshold, a compressor and an EQ, applied to your physical mic and delivered
 as Sonar's virtual microphone to Discord, games and OBS.
 
@@ -64,11 +64,11 @@ as Sonar's virtual microphone to Discord, games and OBS.
 
 | | Sonar Lite | SteelSeries GG |
 |---|---|---|
-| Needs the full suite running | No | Yes, Sonar is part of it |
+| Needs the full suite running? | No | Yes, Sonar is part of it |
 | Installation | None, unzip and run | Installer |
 | Size | Under 3 MB | Full application suite |
 | Source code | Open, MIT | Closed |
-| Scope | Sonar mixer: channels, EQ, mic, stream mix | Everything GG does |
+| Scope | Sonar Mixer: channels, EQ, mic, stream mix | Everything else GG does |
 
 Sonar Lite is not a full replacement for GG. It uses the Sonar driver that GG installs, so you need GG installed
 once. Spatial audio and global hotkeys are not implemented yet.
