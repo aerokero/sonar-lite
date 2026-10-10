@@ -1,36 +1,97 @@
-# Sonar Lite
+<p align="center">
+  <img src="docs/banner.png" alt="Sonar Lite" width="100%">
+</p>
 
-A small, light-weight replacement mixer for the audio channels of **SteelSeries Sonar**.
+<p align="center">
+  <a href="https://github.com/aerokero/sonar-lite/releases/latest"><img alt="Download" src="https://img.shields.io/github/v/release/aerokero/sonar-lite?label=download&style=for-the-badge&color=ff5b24"></a>
+  <img alt="Windows 11" src="https://img.shields.io/badge/Windows-11-2c3038?style=for-the-badge">
+  <a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2c3038?style=for-the-badge"></a>
+</p>
 
-> **Not affiliated with SteelSeries.** Sonar Lite is an independent hobby project. "SteelSeries", "GG" and "Sonar" are trademarks of
-> their owners and are used here only to describe what this program works with. See [Legal](#legal).
+<p align="center">
+  Game, Chat, Media, Aux, your microphone and your stream mix.<br>
+  Everything you use <b>SteelSeries Sonar</b> for, in one small window that lives in your tray.
+</p>
 
-## What it does
+<p align="center">
+  <img src="docs/mixer.png" alt="Sonar Lite mixer" width="880">
+</p>
 
-- **Full Game, Chat, Media, Aux functionality**: output device, live volume, mute, level meter, per-channel priority list of devices with
-  automatic fallback, "link all channels" mode.
-- **Equalizer** – Sonar-style page: draggable audio markers with an exact-value popup (gain / frequency / Q / type), Bass / Voice / Treble
-  sliders, built-in presets and up to 10 own presets (separate sets for channels and for the microphone).
-- **Per-App Routing** – drag an app onto a channel. Apps that choose their own output device cannot be routed; they are listed separately.
-- Full compatibility or replacement of Sonar's **microphone features** (AI noise reduction, noise gate with automatic threshold, compressor, EQ, gain).
-- **Streamer Mode** support
-- A small command-line tool, `SonarLiteCli`, for scripting (`status`, `set`, `apps`, `app`, `eq`, `preset`, `refresh`, `vad`, `autostart`).
+## Why Sonar Lite
 
-## Requirements
+**Featherweight.** One portable exe in a zip of under 3 MB. No installer, no background suite, no account.
 
-- Windows 11 (developed and tested on 24H2).
-- SteelSeries GG with Sonar **installed once**, so that the virtual devices (`SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone`) and
-  the APO exist. GG itself does not need to run – and should not run at the same time.
-- Optional: a virtual audio cable (e.g. "Virtual Audio Cable") for streamer mode.
+**Ready when you are.** Starts quickly, sits in the tray, and can start with Windows without a UAC prompt at login.
 
-## Download
+**Your devices, your order.** Give every channel a priority list of devices. Unplug your headset and the channel moves to the next
+device by itself; plug it back and it returns.
 
-Grab `SonarLite-<version>-portable.zip` from the Releases page, unzip it anywhere and run `SonarLite.exe` (Windows asks for administrator
-rights). Nothing is installed; settings are kept in `%APPDATA%\SonarLite`. No Visual C++ Redistributable is needed.
-Note: "Start with Windows" registers a scheduled task that points at the exe's current location, so if you move the exe, switch it off and on again.
+**Drag, drop, done.** Send any app to any channel by dragging its chip onto it. No menus, no digging through Windows settings.
+
+**Changes do not strand your music.** Change a device or an EQ while music is playing and Sonar Lite resumes whatever the change
+paused, so Spotify comes back on its own.
+
+**Built for streamers.** A separate stream mix with its own faders and EQ per source, sent to a virtual cable that OBS records.
+What your viewers hear is independent of what you hear.
+
+**Scriptable and open.** A command-line tool for your own automation, and the whole project is open source under the MIT license.
+
+## Sound it your way
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### Equalizer
+Drag the markers on a Sonar-style graph or type exact gain, frequency and Q. Start from the built-in presets, add Bass / Voice /
+Treble, and keep up to 10 presets of your own for every channel.
+
+</td>
+<td width="50%"><img src="docs/eq.png" alt="Equalizer"></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/mic.png" alt="Microphone chain"></td>
+<td width="50%" valign="top">
+
+### Microphone chain
+Noise reduction, a noise gate that finds its own threshold, a compressor and an EQ, applied to your physical mic and delivered
+as Sonar's virtual microphone to Discord, games and OBS.
+
+</td>
+</tr>
+</table>
+
+## Sonar Lite and GG
+
+| | Sonar Lite | SteelSeries GG |
+|---|---|---|
+| Needs the full suite running | No | Yes, Sonar is part of it |
+| Installation | None, unzip and run | Installer |
+| Size | Under 3 MB | Full application suite |
+| Source code | Open, MIT | Closed |
+| Scope | Sonar mixer: channels, EQ, mic, stream mix | Everything GG does |
+
+Sonar Lite is a focused companion, not a full replacement for GG. It uses the Sonar driver that GG installs, so you need GG installed
+once. Spatial audio and global hotkeys are not implemented yet.
+
+## Get started
+
+1. Install **SteelSeries GG** (it contains Sonar), start it once and close it. GG should not run together with Sonar Lite.
+2. Download the zip from [Releases](https://github.com/aerokero/sonar-lite/releases/latest), unzip it anywhere and run `SonarLite.exe`.
+
+Requires Windows 11 and administrator rights, because the app writes the Sonar settings. Settings are kept in `%APPDATA%\SonarLite`.
+Windows shows "Unknown publisher" because the exe is not code-signed.
+
+## Build
+
+```powershell
+cargo build --release
+```
+
+Produces `SonarLite.exe` and `SonarLiteCli.exe` in `target\release`.
 
 ## Legal
 
-Sonar Lite is released under the [MIT License](LICENSE) and contains no SteelSeries code or files. It only reads and writes settings on
-your own machine and requires a separately installed copy of GG/Sonar, which is subject to SteelSeries' own license terms – you are
-responsible for complying with them. The software is provided as is, without warranty; changing audio driver settings is done at your own risk.
+Not affiliated with SteelSeries. "SteelSeries", "GG" and "Sonar" are trademarks of their owners. Sonar Lite is released under the
+[MIT License](LICENSE), contains no SteelSeries code and requires a separately installed GG/Sonar, which is subject to SteelSeries' own
+license terms. Provided as is, without warranty; changing audio driver settings is at your own risk.
