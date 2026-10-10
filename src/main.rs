@@ -91,6 +91,8 @@ enum Act {
     CloseToTray(bool),
     StartInTray(bool),
     OpenConfigDir,
+    /// hide the "Sonar not found" popup until the next start
+    HideMissing,
 }
 
 struct App {
@@ -112,6 +114,7 @@ struct App {
     rows_at: Instant,
     pol: Option<apps::Policy>,
     dirty: Vec<&'static str>,
+    missing_hidden: bool,
     mic_cfg: mic::Cfg,
     mic: Option<mic::MicRun>,
     mic_pending: Option<std::sync::mpsc::Receiver<Result<mic::MicRun, String>>>,
@@ -1090,6 +1093,7 @@ impl App {
                     settings::save(&self.prefs);
                     if self.autostart { if let Err(e) = autostart::set(true, b) { self.err = Some(e.to_string()); } } // rewrite the entry with the new arguments
                 }
+                Act::HideMissing => self.missing_hidden = true,
                 Act::OpenConfigDir => { let _ = std::process::Command::new("explorer").arg(settings::dir()).spawn(); }
                 Act::Refresh => { self.reload(); self.err = None; self.sync_stream_eq(); }
             }
@@ -1552,18 +1556,23 @@ impl App {
                 });
                 return;
             }
-            if self.sonar_missing() {
-                egui::Frame::none().fill(Color32::from_rgb(86, 40, 36)).rounding(8.0).inner_margin(egui::Margin::same(12.0)).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    let none = self.chans.is_empty(); // no Sonar.APO settings at all: GG/Sonar was never installed (first run)
-                    ui.label(RichText::new(tr(if none { "Nie znaleziono SteelSeries Sonar" } else { "Kanały Sonara nie istnieją w systemie" })).strong().size(14.0).color(Color32::from_rgb(255, 190, 170)));
-                    ui.label(RichText::new(tr(if none { "Sonar Lite steruje sterownikiem Sonara, który instaluje SteelSeries GG. Jednorazowo:\n1) zainstaluj SteelSeries GG (zawiera Sonara) i uruchom go raz,\n2) zamknij GG,\n3) kliknij „Sprawdź ponownie” albo uruchom Sonar Lite jeszcze raz. Potem GG nie jest już potrzebne i nie powinno działać razem z Sonar Lite." } else { "Windows nie widzi urządzeń „SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone”. GG wyłącza je przy zamknięciu, a Sonar Lite włącza je z powrotem sam. Jeśli ten komunikat nie znika, uruchom Sonar Lite jako administrator (wymaga tego włączanie urządzeń) i kliknij „Sprawdź ponownie”." })).size(12.0));
-                    ui.horizontal(|ui| {
-                        if ui.button(tr("Sprawdź ponownie")).clicked() { acts.push(Act::Refresh); }
-                        if none && ui.button(tr("Pobierz SteelSeries GG")).clicked() { let _ = std::process::Command::new("explorer").arg("https://steelseries.com/gg").spawn(); }
+            if self.sonar_missing() && !self.missing_hidden {
+                // bottom-right popup; `none` = no Sonar.APO settings at all: GG/Sonar was never installed (first run)
+                let none = self.chans.is_empty();
+                egui::Area::new(egui::Id::new("sonar_missing")).anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-14.0, -14.0)).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+                    egui::Frame::popup(ui.style()).fill(Color32::from_rgb(86, 40, 36)).rounding(8.0).inner_margin(egui::Margin::same(14.0)).show(ui, |ui| {
+                        ui.set_max_width(380.0);
+                        ui.label(RichText::new(tr(if none { "Nie znaleziono SteelSeries Sonar!" } else { "Kanały Sonara nie istnieją w systemie" })).strong().size(15.0).color(Color32::from_rgb(255, 190, 170)));
+                        ui.add_space(4.0);
+                        ui.label(RichText::new(tr(if none { "Sonar Lite korzysta ze sterownika Sonara, który instaluje SteelSeries GG.\n1) Upewnij się, że SteelSeries GG jest zainstalowane i uruchomione przynajmniej raz,\n2) Zamknij GG całkowicie,\n3) Kliknij „Sprawdź ponownie” albo uruchom Sonar Lite ponownie.\nPotem GG nie jest już potrzebne i nie powinno działać razem z Sonar Lite.\nUpewnij się, że GG nie uruchamia się automatycznie z Windows." } else { "Windows nie widzi urządzeń „SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone”. GG wyłącza je przy zamknięciu, a Sonar Lite włącza je z powrotem sam. Jeśli ten komunikat nie znika, uruchom Sonar Lite jako administrator (wymaga tego włączanie urządzeń) i kliknij „Sprawdź ponownie”." })).color(Color32::from_rgb(235, 215, 208)).size(13.0));
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            if ui.button(tr("Sprawdź ponownie")).clicked() { acts.push(Act::Refresh); }
+                            if none && ui.button(tr("Pobierz SteelSeries GG")).clicked() { let _ = std::process::Command::new("explorer").arg("https://steelseries.com/gg").spawn(); }
+                            if ui.button(tr("Ukryj")).clicked() { acts.push(Act::HideMissing); }
+                        });
                     });
                 });
-                ui.add_space(8.0);
             }
             let gap = 8.0;
             let sep = 12.0; // extra room for the vertical line between MASTER and the channels
@@ -1663,7 +1672,7 @@ fn main() -> eframe::Result {
     let shot = std::env::args().skip_while(|a| a != "--shot").nth(1);
     let mut app = App {
         hklm: RegKey::predef(HKEY_LOCAL_MACHINE), eps: vec![], chans: vec![], err: None, mixer: mixer::load(), settings: None, device_win: None, sel: 0,
-        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![],
+        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], missing_hidden: false,
         mic_cfg: mic::load_cfg(), mic: None, mic_pending: None, mic_inputs: mic::inputs(), mic_outputs: vec![], devs: Default::default(), sh: stream::Shared::new(), stream: None, stream_pending: None, obs_hint: String::new(),
         autostart: autostart::enabled(), has_tray: false, _tray: None, tray_items: None, prefs: settings::load(), prefs_open: false,
         start_hidden: tray_start && shot.is_none(), shot, frames: 0,
