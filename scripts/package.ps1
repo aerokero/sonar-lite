@@ -10,7 +10,7 @@ $name = "SonarLite-$version-portable"
 $stage = "dist\$name"
 Remove-Item dist -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $stage | Out-Null
-Copy-Item target\release\sonar-lite.exe, target\release\sonar-lite-cli.exe, README.md, LICENSE $stage
+Copy-Item target\release\SonarLite.exe, target\release\SonarLiteCli.exe, README.md, LICENSE $stage
 Compress-Archive -Path $stage -DestinationPath "dist\$name.zip"
 $zip = Get-Item "dist\$name.zip"
 "{0}  ({1:N1} MB)" -f $zip.FullName, ($zip.Length / 1MB)
