@@ -9,6 +9,7 @@ pub mod autostart;
 pub mod mic;
 pub mod mixer;
 pub mod stream;
+mod translations;
 pub mod vad;
 use std::io;
 use winreg::{enums::*, RegKey, RegValue};

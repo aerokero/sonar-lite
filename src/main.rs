@@ -188,6 +188,33 @@ fn icon_rgba() -> (Vec<u8>, u32) {
     (px, n)
 }
 
+/// Set once the language list has been opened: its entries are in several scripts, so all CJK fonts are loaded from then on.
+static ALL_FONTS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// egui's built-in fonts have no CJK glyphs. For Chinese / Japanese / Korean (and once the language list was opened) the Windows
+/// system fonts are added as fallbacks. Reloads only when the language or that need changes.
+fn sync_fonts(ctx: &egui::Context) {
+    use std::sync::atomic::AtomicU16;
+    static DONE: AtomicU16 = AtomicU16::new(u16::MAX);
+    let (lang, all) = (i18n::lang(), ALL_FONTS.load(Relaxed));
+    let key = lang as u16 | (all as u16) << 8;
+    if DONE.swap(key, Relaxed) == key { return; }
+    let mut order: Vec<&str> = match lang { i18n::Lang::Zh => vec!["msyh.ttc"], i18n::Lang::Ja => vec!["YuGothM.ttc"], i18n::Lang::Ko => vec!["malgun.ttf"], _ => vec![] };
+    if all {
+        let more: Vec<&str> = ["msyh.ttc", "YuGothM.ttc", "malgun.ttf"].into_iter().filter(|f| !order.contains(f)).collect();
+        order.extend(more);
+    }
+    let dir = std::path::PathBuf::from(std::env::var_os("WINDIR").unwrap_or_else(|| "C:/Windows".into())).join("Fonts");
+    let mut fonts = egui::FontDefinitions::default();
+    for (i, f) in order.iter().enumerate() {
+        let Ok(bytes) = std::fs::read(dir.join(f)) else { continue };
+        let name = format!("cjk{i}");
+        fonts.font_data.insert(name.clone(), egui::FontData::from_owned(bytes).tweak(egui::FontTweak { y_offset_factor: 0.12, ..Default::default() })); // CJK glyphs sit high next to Latin ones
+        for fam in fonts.families.values_mut() { fam.push(name.clone()); }
+    }
+    ctx.set_fonts(fonts);
+}
+
 fn style(ctx: &egui::Context) {
     let mut v = egui::Visuals::dark();
     v.panel_fill = BG;
@@ -1457,12 +1484,13 @@ impl App {
                             ui.spacing_mut().item_spacing.y = 10.0;
                             match i {
                                 0 => {
-                                    let cur = if self.prefs.lang == i18n::Lang::Pl { "Polski" } else { "English" };
+                                    let cur = self.prefs.lang.name();
                                     ui.horizontal(|ui| {
                                         ui.label(RichText::new(tr("Język")).color(WEAK).size(13.0));
                                         egui::ComboBox::from_id_salt("lang").selected_text(cur).width(180.0).show_ui(ui, |ui| {
-                                            for (l, n) in [(i18n::Lang::Pl, "Polski"), (i18n::Lang::En, "English")] {
-                                                if ui.selectable_label(self.prefs.lang == l, n).clicked() { acts.push(Act::SetLang(l)); }
+                                            ALL_FONTS.store(true, Relaxed); // the names are in several scripts
+                                            for l in i18n::Lang::ALL {
+                                                if ui.selectable_label(self.prefs.lang == l, l.name()).clicked() { acts.push(Act::SetLang(l)); }
                                             }
                                         });
                                     });
@@ -1599,6 +1627,7 @@ impl App {
 
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
+        sync_fonts(ctx);
         if ctx.input(|i| i.viewport().close_requested()) && self.has_tray && self.prefs.close_to_tray {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             hide();
@@ -1717,6 +1746,7 @@ fn main() -> eframe::Result {
     };
     eframe::run_native("Sonar Lite", opts, Box::new(move |cc| {
         style(&cc.egui_ctx);
+        sync_fonts(&cc.egui_ctx);
         watch_show(&cc.egui_ctx);
         watch_quit();
         if let Some((t, a, b)) = make_tray(&cc.egui_ctx) { app._tray = Some(t); app.tray_items = Some((a, b)); }

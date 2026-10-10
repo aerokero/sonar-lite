@@ -9,7 +9,6 @@
 </p>
 
 <p align="center">
-  Game, Chat, Media, Aux, your microphone and your stream mix.<br>
   Everything you use <b>SteelSeries Sonar</b> for, in one small window that lives in your tray.
 </p>
 
@@ -19,9 +18,9 @@
 
 ## Why Sonar Lite
 
-**Featherweight.** One portable exe in a zip of under 3 MB. No installer, no background suite, no account.
+**Featherweight.** One portable exe in a zip of under 3 MB. No installer, no social media buttons, no account.
 
-**Ready when you are.** Starts quickly, sits in the tray, and can start with Windows without a UAC prompt at login.
+**Ready when you are.** Starts quickly, sits in the tray, and can start with Windows.
 
 **Your devices, your order.** Give every channel a priority list of devices. Unplug your headset and the channel moves to the next
 device by itself; plug it back and it returns.
@@ -29,7 +28,7 @@ device by itself; plug it back and it returns.
 **Drag, drop, done.** Send any app to any channel by dragging its chip onto it. No menus, no digging through Windows settings.
 
 **Changes do not strand your music.** Change a device or an EQ while music is playing and Sonar Lite resumes whatever the change
-paused, so Spotify comes back on its own.
+paused.
 
 **Built for streamers.** A separate stream mix with its own faders and EQ per source, sent to a virtual cable that OBS records.
 What your viewers hear is independent of what you hear.
@@ -71,7 +70,7 @@ as Sonar's virtual microphone to Discord, games and OBS.
 | Source code | Open, MIT | Closed |
 | Scope | Sonar mixer: channels, EQ, mic, stream mix | Everything GG does |
 
-Sonar Lite is a focused companion, not a full replacement for GG. It uses the Sonar driver that GG installs, so you need GG installed
+Sonar Lite is not a full replacement for GG. It uses the Sonar driver that GG installs, so you need GG installed
 once. Spatial audio and global hotkeys are not implemented yet.
 
 ## Get started
@@ -80,15 +79,6 @@ once. Spatial audio and global hotkeys are not implemented yet.
 2. Download the zip from [Releases](https://github.com/aerokero/sonar-lite/releases/latest), unzip it anywhere and run `SonarLite.exe`.
 
 Requires Windows 11 and administrator rights, because the app writes the Sonar settings. Settings are kept in `%APPDATA%\SonarLite`.
-Windows shows "Unknown publisher" because the exe is not code-signed.
-
-## Build
-
-```powershell
-cargo build --release
-```
-
-Produces `SonarLite.exe` and `SonarLiteCli.exe` in `target\release`.
 
 ## Legal
 

@@ -1,4 +1,5 @@
-// UI language. The source strings are Polish; `tr` returns the English text when English is selected (unknown strings pass through).
+// UI language. The source strings are Polish; `tr` returns the text of the selected language (English: `EN`, the others: translations.rs).
+// Strings without a translation fall back to English, then pass through unchanged.
 use std::{
     collections::HashMap,
     sync::{
@@ -8,17 +9,25 @@ use std::{
 };
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Lang { Pl, En }
+pub enum Lang { Pl, En, Zh, Ja, Ko, De, Fr, Es }
 
 impl Lang {
-    pub fn code(self) -> &'static str { match self { Lang::Pl => "pl", Lang::En => "en" } }
-    pub fn from_code(c: &str) -> Lang { if c.eq_ignore_ascii_case("en") { Lang::En } else { Lang::Pl } }
+    /// In discriminant order; also the order of the language list.
+    pub const ALL: [Lang; 8] = [Lang::Pl, Lang::En, Lang::Zh, Lang::Ja, Lang::Ko, Lang::De, Lang::Fr, Lang::Es];
+    pub fn code(self) -> &'static str {
+        match self { Lang::Pl => "pl", Lang::En => "en", Lang::Zh => "zh", Lang::Ja => "ja", Lang::Ko => "ko", Lang::De => "de", Lang::Fr => "fr", Lang::Es => "es" }
+    }
+    /// The language's own name, as shown in the language list.
+    pub fn name(self) -> &'static str {
+        match self { Lang::Pl => "Polski", Lang::En => "English", Lang::Zh => "简体中文", Lang::Ja => "日本語", Lang::Ko => "한국어", Lang::De => "Deutsch", Lang::Fr => "Français", Lang::Es => "Español" }
+    }
+    pub fn from_code(c: &str) -> Lang { Lang::ALL.into_iter().find(|l| l.code().eq_ignore_ascii_case(c)).unwrap_or(Lang::Pl) }
 }
 
 static LANG: AtomicU8 = AtomicU8::new(0);
 
 pub fn set_lang(l: Lang) { LANG.store(l as u8, Ordering::Relaxed); }
-pub fn lang() -> Lang { if LANG.load(Ordering::Relaxed) == 1 { Lang::En } else { Lang::Pl } }
+pub fn lang() -> Lang { Lang::ALL.get(LANG.load(Ordering::Relaxed) as usize).copied().unwrap_or(Lang::Pl) }
 
 const EN: &[(&str, &str)] = &[
     // main view
@@ -154,9 +163,20 @@ fn table() -> &'static HashMap<&'static str, &'static str> {
     T.get_or_init(|| EN.iter().copied().collect())
 }
 
+fn other() -> &'static HashMap<&'static str, [&'static str; 6]> {
+    static T: OnceLock<HashMap<&'static str, [&'static str; 6]>> = OnceLock::new();
+    T.get_or_init(|| crate::translations::OTHER.iter().copied().collect())
+}
+
 /// Translate a (Polish) UI string to the selected language.
 pub fn tr(s: &str) -> String {
-    if lang() == Lang::En { table().get(s).copied().unwrap_or(s).to_string() } else { s.to_string() }
+    let en = table().get(s).copied();
+    match lang() {
+        Lang::Pl => s,
+        Lang::En => en.unwrap_or(s),
+        l => other().get(s).map(|t| t[l as usize - 2]).or(en).unwrap_or(s),
+    }
+    .to_string()
 }
 
 /// Translate a template with `{}` placeholders and fill them in order.
@@ -185,6 +205,24 @@ mod t {
         assert_eq!(tr_fmt("brak wyjścia „{}”", &["Cable".into()]), "output \"Cable\" not found");
         assert_eq!(tr_fmt("Kanał {} jest niedostępny: w systemie nie ma urządzenia „SteelSeries Sonar - …”. Aplikacji nie da się do niego przypisać.", &["GAME".into()]).starts_with("Channel GAME is unavailable"), true);
         set_lang(Lang::Pl);
+    }
+
+    #[test]
+    fn every_string_is_translated_into_every_language() {
+        assert_eq!(crate::translations::OTHER.len(), EN.len());
+        for (pl, en) in EN {
+            let t = other().get(pl).unwrap_or_else(|| panic!("no translation of: {pl}"));
+            for (i, v) in t.iter().enumerate() {
+                assert!(!v.is_empty(), "empty translation {i} of: {pl}");
+                assert_eq!(v.matches("{}").count(), en.matches("{}").count(), "placeholders differ in translation {i} of: {pl}");
+            }
+        }
+    }
+
+    #[test]
+    fn language_codes_round_trip() {
+        for l in Lang::ALL { assert_eq!(Lang::from_code(l.code()), l); assert_eq!(Lang::ALL[l as usize], l); }
+        assert_eq!(Lang::from_code("xx"), Lang::Pl);
     }
 
     #[test]
