@@ -7,7 +7,6 @@ A small, light-weight replacement mixer for the audio channels of **SteelSeries 
 
 ## What it does
 
-- Reimplemented **Mi
 - **Full Game, Chat, Media, Aux functionality**: output device, live volume, mute, level meter, per-channel priority list of devices with
   automatic fallback, "link all channels" mode.
 - **Equalizer** – Sonar-style page: draggable audio markers with an exact-value popup (gain / frequency / Q / type), Bass / Voice / Treble
