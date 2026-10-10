@@ -1557,9 +1557,11 @@ impl App {
                     ui.set_width(ui.available_width());
                     let none = self.chans.is_empty(); // no Sonar.APO settings at all: GG/Sonar was never installed (first run)
                     ui.label(RichText::new(tr(if none { "Nie znaleziono SteelSeries Sonar" } else { "Kanały Sonara nie istnieją w systemie" })).strong().size(14.0).color(Color32::from_rgb(255, 190, 170)));
-                    ui.label(RichText::new(tr(if none { "Sonar Lite steruje sterownikiem Sonara, który instaluje SteelSeries GG. Jednorazowo: 1) zainstaluj SteelSeries GG (zawiera Sonara) i uruchom go raz, 2) zamknij GG, 3) kliknij „Sprawdź ponownie” albo uruchom Sonar Lite jeszcze raz. Potem GG nie jest już potrzebne i nie powinno działać razem z Sonar Lite." } else { "Windows nie widzi urządzeń „SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone”. GG wyłącza je przy zamknięciu, a Sonar Lite włącza je z powrotem sam. Jeśli ten komunikat nie znika, uruchom Sonar Lite jako administrator (wymaga tego włączanie urządzeń) i kliknij „Sprawdź ponownie”." })).size(12.0));
-                    if ui.button(tr("Sprawdź ponownie")).clicked() { acts.push(Act::Refresh); }
-                    if none && ui.button(tr("Pobierz SteelSeries GG")).clicked() { let _ = std::process::Command::new("explorer").arg("https://steelseries.com/gg").spawn(); }
+                    ui.label(RichText::new(tr(if none { "Sonar Lite steruje sterownikiem Sonara, który instaluje SteelSeries GG. Jednorazowo:\n1) zainstaluj SteelSeries GG (zawiera Sonara) i uruchom go raz,\n2) zamknij GG,\n3) kliknij „Sprawdź ponownie” albo uruchom Sonar Lite jeszcze raz. Potem GG nie jest już potrzebne i nie powinno działać razem z Sonar Lite." } else { "Windows nie widzi urządzeń „SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone”. GG wyłącza je przy zamknięciu, a Sonar Lite włącza je z powrotem sam. Jeśli ten komunikat nie znika, uruchom Sonar Lite jako administrator (wymaga tego włączanie urządzeń) i kliknij „Sprawdź ponownie”." })).size(12.0));
+                    ui.horizontal(|ui| {
+                        if ui.button(tr("Sprawdź ponownie")).clicked() { acts.push(Act::Refresh); }
+                        if none && ui.button(tr("Pobierz SteelSeries GG")).clicked() { let _ = std::process::Command::new("explorer").arg("https://steelseries.com/gg").spawn(); }
+                    });
                 });
                 ui.add_space(8.0);
             }
