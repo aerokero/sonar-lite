@@ -1561,7 +1561,7 @@ impl App {
                 let none = self.chans.is_empty();
                 egui::Area::new(egui::Id::new("sonar_missing")).anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-14.0, -14.0)).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
                     egui::Frame::popup(ui.style()).fill(Color32::from_rgb(86, 40, 36)).rounding(8.0).inner_margin(egui::Margin::same(14.0)).show(ui, |ui| {
-                        ui.set_max_width(380.0);
+                        ui.set_width(600.0f32.min(ui.ctx().screen_rect().width() - 60.0)); // wide enough that no line of either language wraps
                         ui.label(RichText::new(tr(if none { "Nie znaleziono SteelSeries Sonar!" } else { "Kanały Sonara nie istnieją w systemie" })).strong().size(15.0).color(Color32::from_rgb(255, 190, 170)));
                         ui.add_space(4.0);
                         ui.label(RichText::new(tr(if none { "Sonar Lite korzysta ze sterownika Sonara, który instaluje SteelSeries GG.\n1) Upewnij się, że SteelSeries GG jest zainstalowane i uruchomione przynajmniej raz,\n2) Zamknij GG całkowicie,\n3) Kliknij „Sprawdź ponownie” albo uruchom Sonar Lite ponownie.\nPotem GG nie jest już potrzebne i nie powinno działać razem z Sonar Lite.\nUpewnij się, że GG nie uruchamia się automatycznie z Windows." } else { "Windows nie widzi urządzeń „SteelSeries Sonar - Gaming/Chat/Media/Aux/Microphone”. GG wyłącza je przy zamknięciu, a Sonar Lite włącza je z powrotem sam. Jeśli ten komunikat nie znika, uruchom Sonar Lite jako administrator (wymaga tego włączanie urządzeń) i kliknij „Sprawdź ponownie”." })).color(Color32::from_rgb(235, 215, 208)).size(13.0));
