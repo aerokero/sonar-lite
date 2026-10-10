@@ -19,7 +19,7 @@ driver and APO directly, so you can use Sonar's channels without keeping the Ste
   compressor, EQ, gain) and played into Sonar's virtual microphone. Apps using the mic are listed in the MIC strip.
 - **Streamer mode** – a separate mix (own faders and EQ per source, plus the mic) sent to a virtual audio cable that OBS can record.
 - **Tray icon, autostart, own title bar, Polish and English UI.**
-- A small command-line tool, `sonar-lite-cli`, for scripting (`status`, `set`, `apps`, `app`, `eq`, `preset`, `refresh`, `vad`, `autostart`).
+- A small command-line tool, `SonarLiteCli`, for scripting (`status`, `set`, `apps`, `app`, `eq`, `preset`, `refresh`, `vad`, `autostart`).
 
 ## Requirements
 
@@ -31,7 +31,7 @@ driver and APO directly, so you can use Sonar's channels without keeping the Ste
 
 ## Download (portable)
 
-Grab `SonarLite-<version>-portable.zip` from the Releases page, unzip it anywhere and run `sonar-lite.exe` (Windows asks for administrator
+Grab `SonarLite-<version>-portable.zip` from the Releases page, unzip it anywhere and run `SonarLite.exe` (Windows asks for administrator
 rights). Nothing is installed; settings are kept in `%APPDATA%\SonarLite`. No Visual C++ Redistributable is needed.
 "Start with Windows" registers a scheduled task that points at the exe's current location, so if you move the exe, switch it off and on again.
 
@@ -43,8 +43,8 @@ Needs the Rust stable toolchain with the MSVC target. `scripts\package.ps1` buil
 cargo build --release
 ```
 
-Produces `target\release\sonar-lite.exe` (GUI) and `target\release\sonar-lite-cli.exe`.
-`cargo test --lib` runs the unit tests; `sonar-lite.exe --selftest out.txt` drives the real actions against the real registry and restores it.
+Produces `target\release\SonarLite.exe` (GUI) and `target\release\SonarLiteCli.exe`.
+`cargo test --lib` runs the unit tests; `SonarLite.exe --selftest out.txt` drives the real actions against the real registry and restores it.
 
 ## How it works
 

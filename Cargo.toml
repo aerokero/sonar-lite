@@ -3,6 +3,14 @@ name = "sonar-lite"
 version = "0.1.1"
 edition = "2021"
 
+[[bin]]
+name = "SonarLite"
+path = "src/main.rs"
+
+[[bin]]
+name = "SonarLiteCli"
+path = "src/bin/sonar-lite-cli.rs"
+
 [dependencies]
 winreg = "0.52"
 cpal = "0.15"

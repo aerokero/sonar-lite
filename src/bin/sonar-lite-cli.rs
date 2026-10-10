@@ -1,9 +1,9 @@
-// usage: sonar-lite-cli                                  -> status
-//        sonar-lite-cli set <game|media|chat|aux|all> [--out <name>] [--gain 0..1] [--mute on|off]
-//        sonar-lite-cli apps                              -> apps with audio sessions and where they go
-//        sonar-lite-cli app <pid|exe> <game|media|chat|aux|default>
-//        sonar-lite-cli eq <channel> [<band 1-10> [--on|--off] [--gain dB] [--freq Hz] [--q Q] [--type peaking|low|high]]
-//        sonar-lite-cli preset <list | save|load <channel> <name>>
+// usage: SonarLiteCli                                  -> status
+//        SonarLiteCli set <game|media|chat|aux|all> [--out <name>] [--gain 0..1] [--mute on|off]
+//        SonarLiteCli apps                              -> apps with audio sessions and where they go
+//        SonarLiteCli app <pid|exe> <game|media|chat|aux|default>
+//        SonarLiteCli eq <channel> [<band 1-10> [--on|--off] [--gain dB] [--freq Hz] [--q Q] [--type peaking|low|high]]
+//        SonarLiteCli preset <list | save|load <channel> <name>>
 // Run from an elevated terminal (writes HKLM).
 use sonar_lite::*;
 use std::{env, process::exit};
@@ -167,6 +167,6 @@ fn main() {
         }
         Some("eq") => eq(&hklm, &a[1..]),
         Some("preset") => preset(&hklm, &a[1..]),
-        _ => die("usage: sonar-lite-cli [status] | set <game|media|chat|aux|all> [--out name] [--gain 0..1] [--mute on|off]"),
+        _ => die("usage: SonarLiteCli [status] | set <game|media|chat|aux|all> [--out name] [--gain 0..1] [--mute on|off]"),
     }
 }

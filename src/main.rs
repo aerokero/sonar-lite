@@ -755,7 +755,7 @@ impl App {
         self.mic_apps.sort();
         self.mic_apps.dedup();
         let Some(pol) = &self.pol else { return };
-        let sessions: Vec<apps::Session> = apps::sessions().into_iter().filter(|s| s.pid != me && !s.exe.eq_ignore_ascii_case("sonar-lite.exe")).collect();
+        let sessions: Vec<apps::Session> = apps::sessions().into_iter().filter(|s| s.pid != me && !s.exe.eq_ignore_ascii_case("SonarLite.exe")).collect();
         let mut rows: Vec<AppRow> = vec![];
         for s in &sessions {
             if rows.iter().any(|r| r.pid == s.pid) { continue; }

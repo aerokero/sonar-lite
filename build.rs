@@ -22,8 +22,8 @@ BEGIN
       VALUE "FileVersion", "{ver}"
       VALUE "ProductVersion", "{ver}"
       VALUE "LegalCopyright", "Copyright (c) 2026 aerokero. MIT License"
-      VALUE "OriginalFilename", "sonar-lite.exe"
-      VALUE "InternalName", "sonar-lite"
+      VALUE "OriginalFilename", "SonarLite.exe"
+      VALUE "InternalName", "SonarLite"
     END
   END
   BLOCK "VarFileInfo"
@@ -34,14 +34,14 @@ END
 "#);
     let path = format!("{dir}/info.rc");
     std::fs::write(&path, rc).unwrap();
-    embed_resource::compile_for(&path, ["sonar-lite", "sonar-lite-cli"], embed_resource::NONE).manifest_optional().unwrap();
+    embed_resource::compile_for(&path, ["SonarLite", "SonarLiteCli"], embed_resource::NONE).manifest_optional().unwrap();
 }
 
 fn main() {
     embed_info();
     println!("cargo:rerun-if-changed=assets/sonar-lite.ico");
-    println!("cargo:rustc-link-arg-bin=sonar-lite=/MANIFEST:EMBED");
-    println!("cargo:rustc-link-arg-bin=sonar-lite=/MANIFESTUAC:level='requireAdministrator' uiAccess='false'");
+    println!("cargo:rustc-link-arg-bin=SonarLite=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg-bin=SonarLite=/MANIFESTUAC:level='requireAdministrator' uiAccess='false'");
     let id = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     println!("cargo:rustc-env=SONAR_BUILD={id}");
     println!("cargo:rerun-if-changed=build.rs");
