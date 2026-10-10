@@ -782,10 +782,7 @@ impl App {
         let mut keys = std::mem::take(&mut self.dirty);
         keys.sort();
         keys.dedup();
-        for key in keys {
-            let eps = eps.clone();
-            std::thread::spawn(move || { if let Ok(p) = apps::Policy::new() { apps::refresh_channel(&p, &eps, key); } });
-        }
+        std::thread::spawn(move || apps::refresh_channels(&eps, &keys));
     }
 
     /// Channels that share a device list: all four when linked, else just `key`.

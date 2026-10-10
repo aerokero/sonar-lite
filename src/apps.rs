@@ -3,6 +3,7 @@
 // IID ab3d4648-...; vtable layout verified by reading a live process: 3 IUnknown + 3 IInspectable + 19 other + Set(25), Get(26).
 use std::ffi::c_void;
 use windows::{
+    Media::Control::{GlobalSystemMediaTransportControlsSessionManager as Smtc, GlobalSystemMediaTransportControlsSessionPlaybackStatus as Pb},
     core::*,
     Win32::{Foundation::*, Media::Audio::*, System::{Com::*, Threading::*, WinRT::*}},
 };
@@ -114,23 +115,52 @@ pub fn default_render_guid() -> Option<String> {
 }
 
 /// Running APO instances keep the settings they started with. Moving an app to another Sonar channel and back creates a
-/// fresh instance that reads the channel's current registry values. Returns how many apps were refreshed.
+/// fresh instance that reads the channel's current registry values. All apps of the channel move together (one wait, not one
+/// per app). Returns how many apps were refreshed.
 pub fn refresh_channel(pol: &Policy, eps: &[crate::Ep], key: &str) -> usize {
     let park = crate::CHANNELS.iter().map(|c| c.0).filter(|k| *k != key).find_map(|k| crate::sonar_guid(eps, k));
     let (Some(home), Some(park)) = (crate::sonar_guid(eps, key), park) else { return 0 };
     let def = default_render_guid();
-    let mut n = 0;
-    let mut seen = vec![];
+    let mut moved: Vec<(u32, Option<String>)> = vec![];
     for Session { pid, .. } in sessions() {
-        if seen.contains(&pid) { continue; }
-        seen.push(pid);
+        if moved.iter().any(|m| m.0 == pid) { continue; }
         let pin = pol.get(pid);
         let on = match &pin { Some(g) => *g == home, None => def.as_deref() == Some(home.as_str()) };
-        if on && pol.set(pid, Some(&park)).is_ok() {
-            std::thread::sleep(std::time::Duration::from_millis(150));
-            let _ = pol.set(pid, pin.as_deref());
-            n += 1;
-        }
+        if on && pol.set(pid, Some(&park)).is_ok() { moved.push((pid, pin)); }
     }
-    n
+    if !moved.is_empty() { std::thread::sleep(std::time::Duration::from_millis(150)); }
+    for (pid, pin) in &moved { let _ = pol.set(*pid, pin.as_deref()); }
+    moved.len()
+}
+
+/// Refresh the apps of several channels. Re-creating a stream makes some players (Spotify) pause; media that was playing
+/// before and is paused afterwards is resumed through the system media controls (SMTC), so the user only hears a short gap.
+pub fn refresh_channels(eps: &[crate::Ep], keys: &[&str]) {
+    let Ok(pol) = Policy::new() else { return };
+    let was = std::thread::spawn(|| media(|s| s.PlaybackStatus().map_or(false, |p| p == Pb::Playing))).join().unwrap_or_default();
+    for k in keys { refresh_channel(&pol, eps, k); }
+    if was.is_empty() { return; }
+    let _ = std::thread::spawn(move || {
+        let mut left = was;
+        for _ in 0..12 { // up to ~2 s: players pause a moment after their stream was re-created
+            std::thread::sleep(std::time::Duration::from_millis(150));
+            let Ok(ms) = Smtc::RequestAsync().and_then(|o| o.get()).and_then(|m| m.GetSessions()) else { return };
+            for s in ms {
+                let Ok(id) = s.SourceAppUserModelId().map(|h| h.to_string()) else { continue };
+                let Some(i) = left.iter().position(|l| *l == id) else { continue };
+                match s.GetPlaybackInfo().and_then(|p| p.PlaybackStatus()) {
+                    Ok(Pb::Playing) => { left.remove(i); }
+                    Ok(Pb::Paused) => { let _ = s.TryPlayAsync().and_then(|o| o.get()); left.remove(i); }
+                    _ => {}
+                }
+            }
+            if left.is_empty() { return; }
+        }
+    }).join();
+}
+
+/// Source app ids of the media sessions whose playback info matches `f`.
+fn media(f: impl Fn(&windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackInfo) -> bool) -> Vec<String> {
+    let Ok(ms) = Smtc::RequestAsync().and_then(|o| o.get()).and_then(|m| m.GetSessions()) else { return vec![] };
+    ms.into_iter().filter(|s| s.GetPlaybackInfo().map_or(false, |p| f(&p))).filter_map(|s| s.SourceAppUserModelId().ok().map(|h| h.to_string())).collect()
 }
