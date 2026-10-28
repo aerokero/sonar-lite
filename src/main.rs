@@ -311,7 +311,7 @@ fn fader(ui: &mut egui::Ui, v: f32, color: Color32, reset: f32, meter: Option<&M
     p.rect_filled(egui::Rect::from_min_max(egui::pos2(cx - 4.0, top), egui::pos2(cx + 4.0, bot)), 4.0, Color32::from_rgb(22, 24, 28));
     // zones as fractions of the track height: teal below, orange, red at the top
     let at = |f: f32| bot - (bot - top) * f;
-    let lit = meter.map(|m| ((20.0 * (m.level * if m.post_fader { shown } else { 1.0 }).max(1e-4).log10() + 60.0) / 60.0).clamp(0.0, 1.0));
+    let lit = meter.map(|m| ((20.0 * (m.level * if m.post_fader { levels::fader_to_amp(shown) } else { 1.0 }).max(1e-4).log10() + 60.0) / 60.0).clamp(0.0, 1.0));
     // the fader's range below the handle: one plain green bar (a single shape, so no seams); zones only on the live level
     p.rect_filled(egui::Rect::from_min_max(egui::pos2(cx - 4.0, y), egui::pos2(cx + 4.0, bot)), 4.0, Color32::from_rgb(28, 190, 156).gamma_multiply(0.6));
     for (a, b, c) in [(0.0f32, 0.72f32, Color32::from_rgb(28, 190, 156)), (0.72, 0.88, Color32::from_rgb(244, 160, 48)), (0.88, 1.0, Color32::from_rgb(232, 84, 76))] {
@@ -1764,7 +1764,7 @@ fn selftest(app: &mut App) -> String {
     let reg = |app: &App, k: &str| { let c = read_all(&app.hklm).into_iter().find(|c| c.key == k).unwrap(); (c.gain, c.mute) };
     let mut check = |name: &str, ok: bool, detail: String| log += &format!("{} {name}: {detail}\n", if ok { "PASS" } else { "FAIL" });
     // faders live on the endpoints' Windows volume (levels.rs applies it within ~30 ms; the device steps in 1.5 dB)
-    let epg = |app: &App, k: &str| { std::thread::sleep(Duration::from_millis(200)); 1.0 / endpoint_comp(&sonar_guid(&app.eps, k).unwrap_or_default()) };
+    let epg = |app: &App, k: &str| { std::thread::sleep(Duration::from_millis(200)); (1.0 / endpoint_comp(&sonar_guid(&app.eps, k).unwrap_or_default())).cbrt() };
     app.mixer.master = 1.0; app.mixer.chatmix = 0.5;
     app.apply(vec![Act::Fader("aux", 0.5)]);
     let g = epg(app, "aux"); check("fader 50% -> endpoint volume", (g - 0.5).abs() < 0.03, format!("{g}"));
@@ -1772,7 +1772,7 @@ fn selftest(app: &mut App) -> String {
     let g = epg(app, "aux"); check("master 50% moves the faders too: aux 50% -> 25%", (g - 0.25).abs() < 0.03 && (app.mixer.base["aux"] - 0.25).abs() < 1e-6, format!("{g}"));
     app.apply(vec![Act::ChatMix(1.0)]);
     let (gg, cg) = (epg(app, "game"), epg(app, "chat"));
-    check("chatmix fully on CHAT: game ~0, chat = its fader", gg <= 0.011 && (cg - app.mixer.base["chat"]).abs() < 0.03, format!("game {gg} chat {cg}"));
+    check("chatmix fully on CHAT: game ~0, chat = its fader", gg <= 0.03 && (cg - app.mixer.base["chat"]).abs() < 0.03, format!("game {gg} chat {cg}"));
     app.apply(vec![Act::Master(1.0), Act::ChatMix(0.5)]);
     let (gg, cg) = (epg(app, "game"), epg(app, "chat"));
     check("master 100% + chatmix centre: game/chat back to their faders", (gg - app.mixer.base["game"]).abs() < 0.03 && (cg - app.mixer.base["chat"]).abs() < 0.03, format!("game {gg} chat {cg}"));

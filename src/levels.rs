@@ -18,9 +18,12 @@ fn idx(key: &str) -> Option<usize> { KEYS.iter().position(|k| *k == key) }
 /// Latest peak of a channel (0 = silence, 1 = full scale; 0 for an unknown key).
 pub fn get(key: &str) -> f32 { idx(key).map_or(0.0, |i| f32::from_bits(LEVEL[i].load(Relaxed))) }
 
-/// Set a channel's volume (linear amplitude 0..1; applied within ~30 ms, and again whenever the devices are re-created).
-pub fn set_gain(key: &str, gain: f32) {
-    if let Some(i) = idx(key) { WANT[i].store(gain.clamp(0.0, 1.0).to_bits(), Relaxed); DIRTY[i].store(true, Relaxed); }
+/// Fader position (0..1) -> linear amplitude. Cubic, so equal fader steps sound like equal loudness steps (50% = -18 dB).
+pub fn fader_to_amp(v: f32) -> f32 { v.clamp(0.0, 1.0).powi(3) }
+
+/// Set a channel's fader position (0..1; applied within ~30 ms, and again whenever the devices are re-created).
+pub fn set_gain(key: &str, fader: f32) {
+    if let Some(i) = idx(key) { WANT[i].store(fader_to_amp(fader).to_bits(), Relaxed); DIRTY[i].store(true, Relaxed); }
 }
 
 /// dB level for a linear gain, clamped to the endpoint's range (silence = its minimum).
@@ -76,6 +79,8 @@ mod t {
         assert!((to_db(0.5, -96.0, 0.0) + 6.02).abs() < 0.01); // half the amplitude
         assert_eq!(to_db(0.0, -96.0, 0.0), -96.0); // silence = the lowest the device allows
         assert_eq!(to_db(1e-9, -60.0, 0.0), -60.0); // never below the range
+        assert!((to_db(fader_to_amp(0.5), -96.0, 0.0) + 18.06).abs() < 0.01); // fader 50% = -18 dB
+        assert_eq!(fader_to_amp(1.0), 1.0);
         assert_eq!(idx("aux"), Some(3));
         assert_eq!(idx("mic"), None);
     }
