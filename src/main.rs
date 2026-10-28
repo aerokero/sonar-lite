@@ -114,6 +114,8 @@ struct App {
     rows_at: Instant,
     pol: Option<apps::Policy>,
     dirty: Vec<&'static str>,
+    /// an output device changed: restart the audio service so the APO picks it up (see lib::restart_driver)
+    restart: bool,
     missing_hidden: bool,
     mic_cfg: mic::Cfg,
     mic: Option<mic::MicRun>,
@@ -812,7 +814,8 @@ impl App {
         let mut keys = std::mem::take(&mut self.dirty);
         keys.sort();
         keys.dedup();
-        std::thread::spawn(move || apps::refresh_channels(&eps, &keys));
+        let restart = std::mem::take(&mut self.restart);
+        std::thread::spawn(move || apps::refresh_channels(&eps, &keys, restart));
     }
 
     /// Channels that share a device list: all four when linked, else just `key`.
@@ -826,7 +829,7 @@ impl App {
             let l = self.mixer.prio.entry(k.to_string()).or_default();
             l.retain(|(g, _)| g != guid);
             l.insert(0, (guid.to_string(), name.to_string()));
-            if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, guid); self.fail(r); self.dirty.push(k); }
+            if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, guid); self.fail(r); self.restart = true; self.dirty.push(k); }
         }
         mixer::save(&self.mixer);
     }
@@ -837,7 +840,7 @@ impl App {
         for (k, ..) in STRIPS {
             let Some(list) = self.mixer.prio.get(k) else { continue };
             if let (Some(d), Some(i)) = (mixer::desired_device(list, &present), self.idx(k)) {
-                if self.chans[i].guid != d { let r = self.chans[i].set_out(&self.hklm, &d); self.fail(r); self.dirty.push(k); }
+                if self.chans[i].guid != d { let r = self.chans[i].set_out(&self.hklm, &d); self.fail(r); self.restart = true; self.dirty.push(k); }
             }
         }
     }
@@ -964,7 +967,7 @@ impl App {
                     if let Some(i) = self.idx(k) { let r = self.chans[i].set_mute(&self.hklm, m); self.fail(r); self.dirty.push(k); }
                 }
                 Act::Out(k, g) => {
-                    if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.dirty.push(k); }
+                    if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.restart = true; self.dirty.push(k); }
                 }
                 Act::MoveApp(pid, to) => {
                     if let Some(k) = to.filter(|k| sonar_guid(&self.eps, k).is_none()) {
@@ -1096,7 +1099,7 @@ impl App {
                         let l = self.mixer.prio.entry(k.to_string()).or_default();
                         l.retain(|(x, _)| *x != g);
                         l.insert(0, (g.clone(), name.clone()));
-                        if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.dirty.push(k); }
+                        if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.restart = true; self.dirty.push(k); }
                     }
                     mixer::save(&self.mixer);
                 }
@@ -1702,7 +1705,7 @@ fn main() -> eframe::Result {
     let shot = std::env::args().skip_while(|a| a != "--shot").nth(1);
     let mut app = App {
         hklm: RegKey::predef(HKEY_LOCAL_MACHINE), eps: vec![], chans: vec![], err: None, mixer: mixer::load(), settings: None, device_win: None, sel: 0,
-        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], missing_hidden: false,
+        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], restart: false, missing_hidden: false,
         mic_cfg: mic::load_cfg(), mic: None, mic_pending: None, mic_inputs: mic::inputs(), mic_outputs: vec![], devs: Default::default(), sh: stream::Shared::new(), stream: None, stream_pending: None, obs_hint: String::new(),
         autostart: autostart::enabled(), has_tray: false, _tray: None, tray_items: None, prefs: settings::load(), prefs_open: false,
         start_hidden: tray_start && shot.is_none(), shot, frames: 0,

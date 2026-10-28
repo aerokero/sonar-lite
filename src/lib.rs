@@ -160,3 +160,12 @@ mod t {
         assert_eq!(1.0f32.to_bits(), 1065353216); // value observed in registry for gain 1.0
     }
 }
+
+/// The Sonar APO reads its output device only when the audio engine starts (a live APO ignores registry changes, and notify bits
+/// only make it misbehave; restarting the virtual device with pnputil is refused), so after an output change the Windows Audio
+/// service is restarted. Every sound stops for a few seconds; apps reconnect on their own.
+pub fn restart_driver() -> io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("powershell").args(["-NoProfile", "-Command", "Restart-Service Audiosrv -Force"]).creation_flags(0x0800_0000).output()?;
+    Ok(())
+}

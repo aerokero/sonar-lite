@@ -135,14 +135,16 @@ pub fn refresh_channel(pol: &Policy, eps: &[crate::Ep], key: &str) -> usize {
 
 /// Refresh the apps of several channels. Re-creating a stream makes some players (Spotify) pause; media that was playing
 /// before and is paused afterwards is resumed through the system media controls (SMTC), so the user only hears a short gap.
-pub fn refresh_channels(eps: &[crate::Ep], keys: &[&str]) {
+pub fn refresh_channels(eps: &[crate::Ep], keys: &[&str], restart: bool) {
     let Ok(pol) = Policy::new() else { return };
     let was = std::thread::spawn(|| media(|s| s.PlaybackStatus().map_or(false, |p| p == Pb::Playing))).join().unwrap_or_default();
+    // restarting the audio service stops every stream, so it happens after noting what was playing and before the resume loop
+    if restart { let _ = crate::restart_driver(); std::thread::sleep(std::time::Duration::from_millis(1500)); }
     for k in keys { refresh_channel(&pol, eps, k); }
     if was.is_empty() { return; }
     let _ = std::thread::spawn(move || {
         let mut left = was;
-        for _ in 0..12 { // up to ~2 s: players pause a moment after their stream was re-created
+        for _ in 0..27 { // up to ~4 s: players pause a moment after their stream was re-created
             std::thread::sleep(std::time::Duration::from_millis(150));
             let Ok(ms) = Smtc::RequestAsync().and_then(|o| o.get()).and_then(|m| m.GetSessions()) else { return };
             for s in ms {
