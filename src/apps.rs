@@ -135,11 +135,18 @@ pub fn refresh_channel(pol: &Policy, eps: &[crate::Ep], key: &str) -> usize {
 
 /// Refresh the apps of several channels. Re-creating a stream makes some players (Spotify) pause; media that was playing
 /// before and is paused afterwards is resumed through the system media controls (SMTC), so the user only hears a short gap.
-pub fn refresh_channels(eps: &[crate::Ep], keys: &[&str], restart: bool) {
+pub fn refresh_channels(eps: &[crate::Ep], keys: &[&str], reset: &[&str]) {
     let Ok(pol) = Policy::new() else { return };
     let was = std::thread::spawn(|| media(|s| s.PlaybackStatus().map_or(false, |p| p == Pb::Playing))).join().unwrap_or_default();
-    // restarting the audio service stops every stream, so it happens after noting what was playing and before the resume loop
-    if restart { let _ = crate::restart_driver(); std::thread::sleep(std::time::Duration::from_millis(1500)); }
+    // A running APO reads its output device only once, so a changed device needs that channel's endpoint switched off and on again
+    // (interrupts only that channel's apps, not the whole audio service); the re-pin below then gives the apps a fresh stream on it.
+    let ids: Vec<String> = reset.iter().filter_map(|k| crate::sonar_guid(eps, k)).map(|g| format!("{{0.0.0.00000000}}.{{{g}}}")).collect();
+    if !ids.is_empty() {
+        for id in &ids { let _ = crate::vad::set_visible(id, false); }
+        std::thread::sleep(std::time::Duration::from_millis(700));
+        for id in &ids { let _ = crate::vad::set_visible(id, true); }
+        std::thread::sleep(std::time::Duration::from_millis(1500));
+    }
     for k in keys { refresh_channel(&pol, eps, k); }
     if was.is_empty() { return; }
     let _ = std::thread::spawn(move || {

@@ -114,8 +114,8 @@ struct App {
     rows_at: Instant,
     pol: Option<apps::Policy>,
     dirty: Vec<&'static str>,
-    /// an output device changed: restart the audio service so the APO picks it up (see lib::restart_driver)
-    restart: bool,
+    /// channels whose output device changed: their endpoint is switched off and on so the APO re-reads it (see apps::refresh_channels)
+    reset: Vec<&'static str>,
     missing_hidden: bool,
     mic_cfg: mic::Cfg,
     mic: Option<mic::MicRun>,
@@ -145,6 +145,13 @@ struct App {
 fn short(name: &str) -> &str { name.split(" (").next().unwrap_or(name) }
 
 /// Shorten a label so it never widens its container.
+/// Friendly app name for an exe name (unknown ones just lose ".exe").
+fn pretty(exe: &str) -> String {
+    let n = exe.trim_end_matches(".exe");
+    const NAMES: &[(&str, &str)] = &[("zen", "Zen Browser"), ("vintagestory", "Vintage Story"), ("spotifast", "Spotify"), ("msedge", "Microsoft Edge"), ("chrome", "Google Chrome"),
+        ("firefox", "Firefox"), ("discord", "Discord"), ("steam", "Steam"), ("vlc", "VLC"), ("obs64", "OBS Studio"), ("javaw", "Minecraft (Java)"), ("teams", "Microsoft Teams")];
+    NAMES.iter().find(|(k, _)| n.eq_ignore_ascii_case(k)).map_or(n.to_string(), |(_, v)| v.to_string())
+}
 fn trunc(s: &str, n: usize) -> String { if s.chars().count() > n { format!("{}…", s.chars().take(n - 1).collect::<String>()) } else { s.to_string() } }
 
 /// Minimal PNG encoder (stored deflate blocks) for the `--shot` diagnostic.
@@ -783,7 +790,7 @@ impl App {
         self.rows_at = Instant::now();
         let me = std::process::id();
         let mic_eps: Vec<String> = capture_endpoints(&self.hklm).into_iter().filter(|c| c.1.contains("Sonar - Microphone")).map(|c| c.0).collect();
-        self.mic_apps = apps::capture_sessions().into_iter().filter(|s| s.pid != me && s.active && mic_eps.contains(&s.endpoint)).map(|s| s.exe.trim_end_matches(".exe").to_string()).collect();
+        self.mic_apps = apps::capture_sessions().into_iter().filter(|s| s.pid != me && s.active && mic_eps.contains(&s.endpoint)).map(|s| pretty(&s.exe)).collect();
         self.mic_apps.sort();
         self.mic_apps.dedup();
         let Some(pol) = &self.pol else { return };
@@ -797,8 +804,8 @@ impl App {
             let on = |x: &&apps::Session| self.chan_of_endpoint(&x.endpoint);
             let to = pin_key.filter(|k| mine.iter().any(|x| on(x) == Some(*k)))
                 .or_else(|| mine.iter().filter(|x| x.active).find_map(on))
-                .or_else(|| mine.iter().find_map(on))
-                .or_else(|| pin_key.filter(|_| mine.iter().all(|x| !x.active))); // idle: its next stream goes where it is pinned
+                .or_else(|| pin_key.filter(|_| mine.iter().all(|x| !x.active))) // idle: its next stream goes where it is pinned
+                .or_else(|| mine.iter().find_map(on));
             let dev = if to.is_none() {
                 self.eps.iter().find(|e| e.guid == s.endpoint).map_or(String::new(), |e| short(&e.name).to_string())
             } else { String::new() };
@@ -814,8 +821,8 @@ impl App {
         let mut keys = std::mem::take(&mut self.dirty);
         keys.sort();
         keys.dedup();
-        let restart = std::mem::take(&mut self.restart);
-        std::thread::spawn(move || apps::refresh_channels(&eps, &keys, restart));
+        let reset = std::mem::take(&mut self.reset);
+        std::thread::spawn(move || apps::refresh_channels(&eps, &keys, &reset));
     }
 
     /// Channels that share a device list: all four when linked, else just `key`.
@@ -829,7 +836,7 @@ impl App {
             let l = self.mixer.prio.entry(k.to_string()).or_default();
             l.retain(|(g, _)| g != guid);
             l.insert(0, (guid.to_string(), name.to_string()));
-            if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, guid); self.fail(r); self.restart = true; self.dirty.push(k); }
+            if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, guid); self.fail(r); self.reset.push(k); self.dirty.push(k); }
         }
         mixer::save(&self.mixer);
     }
@@ -840,7 +847,7 @@ impl App {
         for (k, ..) in STRIPS {
             let Some(list) = self.mixer.prio.get(k) else { continue };
             if let (Some(d), Some(i)) = (mixer::desired_device(list, &present), self.idx(k)) {
-                if self.chans[i].guid != d { let r = self.chans[i].set_out(&self.hklm, &d); self.fail(r); self.restart = true; self.dirty.push(k); }
+                if self.chans[i].guid != d { let r = self.chans[i].set_out(&self.hklm, &d); self.fail(r); self.reset.push(k); self.dirty.push(k); }
             }
         }
     }
@@ -967,7 +974,7 @@ impl App {
                     if let Some(i) = self.idx(k) { let r = self.chans[i].set_mute(&self.hklm, m); self.fail(r); self.dirty.push(k); }
                 }
                 Act::Out(k, g) => {
-                    if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.restart = true; self.dirty.push(k); }
+                    if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.reset.push(k); self.dirty.push(k); }
                 }
                 Act::MoveApp(pid, to) => {
                     if let Some(k) = to.filter(|k| sonar_guid(&self.eps, k).is_none()) {
@@ -1099,7 +1106,7 @@ impl App {
                         let l = self.mixer.prio.entry(k.to_string()).or_default();
                         l.retain(|(x, _)| *x != g);
                         l.insert(0, (g.clone(), name.clone()));
-                        if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.restart = true; self.dirty.push(k); }
+                        if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.reset.push(k); self.dirty.push(k); }
                     }
                     mixer::save(&self.mixer);
                 }
@@ -1137,7 +1144,7 @@ impl App {
         let mine: Vec<&AppRow> = self.rows.iter().filter(|r| r.to == here).collect();
         for r in mine {
             let c = here.map_or(Color32::from_rgb(150, 154, 166), col);
-            let label = if r.dev.is_empty() { trunc(r.exe.trim_end_matches(".exe"), 18) } else { trunc(&format!("{} · {}", r.exe.trim_end_matches(".exe"), r.dev), 22) };
+            let label = if r.dev.is_empty() { trunc(&pretty(&r.exe), 18) } else { trunc(&format!("{} · {}", pretty(&r.exe), r.dev), 22) };
             let resp = ui.dnd_drag_source(egui::Id::new(("chip", r.pid)), r.pid, |ui| app_chip(ui, &label, c)).response;
             let resp = if r.dev.is_empty() { resp } else { resp.on_hover_text(tr_fmt("{} gra bezpośrednio na urządzeniu „{}” (ma własny wybór wyjścia). Ustaw w niej wyjście „Domyślne”, żeby przypisać ją do kanału.", &[r.exe.to_string(), r.dev.to_string()])) };
             resp.context_menu(|ui| {
@@ -1705,7 +1712,7 @@ fn main() -> eframe::Result {
     let shot = std::env::args().skip_while(|a| a != "--shot").nth(1);
     let mut app = App {
         hklm: RegKey::predef(HKEY_LOCAL_MACHINE), eps: vec![], chans: vec![], err: None, mixer: mixer::load(), settings: None, device_win: None, sel: 0,
-        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], restart: false, missing_hidden: false,
+        bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], reset: vec![], missing_hidden: false,
         mic_cfg: mic::load_cfg(), mic: None, mic_pending: None, mic_inputs: mic::inputs(), mic_outputs: vec![], devs: Default::default(), sh: stream::Shared::new(), stream: None, stream_pending: None, obs_hint: String::new(),
         autostart: autostart::enabled(), has_tray: false, _tray: None, tray_items: None, prefs: settings::load(), prefs_open: false,
         start_hidden: tray_start && shot.is_none(), shot, frames: 0,
