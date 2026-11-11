@@ -37,7 +37,8 @@ const BAND_COLORS: [Color32; 10] = [
 fn col(key: &str) -> Color32 { STRIPS.iter().find(|s| s.0 == key).map_or(WEAK, |s| s.3) }
 
 /// An app with an audio session. `to` = Sonar channel it really plays on (None = a normal Windows device, named in `dev`).
-struct AppRow { pid: u32, exe: String, to: Option<&'static str>, dev: String }
+/// `moved_to` = the channel it is pinned to while its open stream still plays elsewhere (the app has to open a new stream, e.g. restart).
+struct AppRow { pid: u32, exe: String, to: Option<&'static str>, dev: String, moved_to: Option<&'static str> }
 
 /// Everything the UI can ask for; performed by `App::apply` after drawing.
 enum Act {
@@ -809,7 +810,8 @@ impl App {
             let dev = if to.is_none() {
                 self.eps.iter().find(|e| e.guid == s.endpoint).map_or(String::new(), |e| short(&e.name).to_string())
             } else { String::new() };
-            rows.push(AppRow { pid: s.pid, exe: s.exe.clone(), to, dev });
+            let moved_to = pin_key.filter(|k| to.is_some() && to != Some(*k));
+            rows.push(AppRow { pid: s.pid, exe: s.exe.clone(), to, dev, moved_to });
         }
         self.rows = rows;
     }
@@ -1144,9 +1146,9 @@ impl App {
         let mine: Vec<&AppRow> = self.rows.iter().filter(|r| r.to == here).collect();
         for r in mine {
             let c = here.map_or(Color32::from_rgb(150, 154, 166), col);
-            let label = if r.dev.is_empty() { trunc(&pretty(&r.exe), 18) } else { trunc(&format!("{} · {}", pretty(&r.exe), r.dev), 22) };
+            let label = if r.moved_to.is_some() { trunc(&format!("{} !", pretty(&r.exe)), 18) } else if r.dev.is_empty() { trunc(&pretty(&r.exe), 18) } else { trunc(&format!("{} · {}", pretty(&r.exe), r.dev), 22) };
             let resp = ui.dnd_drag_source(egui::Id::new(("chip", r.pid)), r.pid, |ui| app_chip(ui, &label, c)).response;
-            let resp = if r.dev.is_empty() { resp } else { resp.on_hover_text(tr_fmt("{} gra bezpośrednio na urządzeniu „{}” (ma własny wybór wyjścia). Ustaw w niej wyjście „Domyślne”, żeby przypisać ją do kanału.", &[r.exe.to_string(), r.dev.to_string()])) };
+            let resp = if let Some(k) = r.moved_to { resp.on_hover_text(tr_fmt("{} jest przypisana do kanału {}, ale jej otwarty strumień nadal gra tutaj. Zrestartuj aplikację, żeby przeszła na nowy kanał.", &[pretty(&r.exe), k.to_uppercase()])) } else if r.dev.is_empty() { resp } else { resp.on_hover_text(tr_fmt("{} gra bezpośrednio na urządzeniu „{}” (ma własny wybór wyjścia). Ustaw w niej wyjście „Domyślne”, żeby przypisać ją do kanału.", &[r.exe.to_string(), r.dev.to_string()])) };
             resp.context_menu(|ui| {
                 for (k, title, _, c) in STRIPS {
                     if here != Some(k) && ui.add(egui::Button::new(RichText::new(format!("→ {title}")).color(c)).frame(false)).clicked() { acts.push(Act::MoveApp(r.pid, Some(k))); ui.close_menu(); }

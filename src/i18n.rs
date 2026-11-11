@@ -145,6 +145,8 @@ const EN: &[(&str, &str)] = &[
     ("urządzenie wyjściowe", "output device"),
     ("{} gra bezpośrednio na urządzeniu „{}” (ma własny wybór wyjścia). Ustaw w niej wyjście „Domyślne”, żeby przypisać ją do kanału.",
      "{} plays directly on the device \"{}\" (it has its own output choice). Set its output to \"Default\" to assign it to a channel."),
+    ("{} jest przypisana do kanału {}, ale jej otwarty strumień nadal gra tutaj. Zrestartuj aplikację, żeby przeszła na nowy kanał.",
+     "{} is assigned to channel {}, but its open stream still plays here. Restart the app to move it to the new channel."),
     // errors from the library modules
     ("nie znaleziono wejścia", "input device not found"),
     ("brak wyjścia „{}”", "output \"{}\" not found"),

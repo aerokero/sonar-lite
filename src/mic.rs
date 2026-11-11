@@ -206,14 +206,36 @@ pub fn save_cfg(c: &Cfg) {
 
 /// Capture devices that can feed the mic chain: physical mics and virtual cables (Sonar's own mic is excluded - it would feed back).
 pub fn inputs() -> Vec<String> {
-    cpal::default_host().input_devices().map(|d| d.filter_map(|d| d.name().ok()).filter(|n| !n.contains("Sonar")).collect()).unwrap_or_default()
+    device_names(windows::Win32::Media::Audio::eCapture).into_iter().filter(|n| !n.contains("Sonar")).collect()
 }
 
 /// Render devices the processed mic can be played on: Sonar's virtual mic (default) and any normal device or virtual cable.
 pub fn outputs() -> Vec<String> {
-    cpal::default_host().output_devices().map(|d| {
-        d.filter_map(|d| d.name().ok()).filter(|n| !n.contains("Sonar") || n.contains("Sonar - Microphone")).collect()
-    }).unwrap_or_default()
+    device_names(windows::Win32::Media::Audio::eRender).into_iter().filter(|n| !n.contains("Sonar") || n.contains("Sonar - Microphone")).collect()
+}
+
+// CPAL's input/output_devices probes stream formats on every device. Repeating that for the pickers leaks handles in
+// audiodg with the Sonar driver. Read the same friendly names without activating audio clients or probing formats.
+fn device_names(flow: windows::Win32::Media::Audio::EDataFlow) -> Vec<String> {
+    use windows::{core::{BSTR, GUID}, Win32::{Media::Audio::*, System::Com::*, UI::Shell::PropertiesSystem::PROPERTYKEY}};
+    unsafe {
+        let initialized = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let names = (|| -> windows::core::Result<Vec<String>> {
+            let en: IMMDeviceEnumerator = CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
+            let devs = en.EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE)?;
+            let name = PROPERTYKEY { fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0), pid: 14 };
+            let mut names = Vec::new();
+            for i in 0..devs.GetCount()? {
+                let Ok(dev) = devs.Item(i) else { continue };
+                let Ok(props) = dev.OpenPropertyStore(STGM_READ) else { continue };
+                let Ok(value) = props.GetValue(&name) else { continue };
+                if let Ok(s) = BSTR::try_from(&value) { names.push(s.to_string()); }
+            }
+            Ok(names)
+        })().unwrap_or_default();
+        if initialized.is_ok() { CoUninitialize(); }
+        names
+    }
 }
 
 /// The processing chain; fed one mono sample at a time, hands back finished samples.
@@ -361,6 +383,31 @@ pub fn start(input: &str, cfg: &Cfg, bus: Option<Arc<stream::Shared>>) -> Result
 #[cfg(test)]
 mod t {
     use super::*;
+
+    // Run explicitly with SONAR_AUDIODG_PID set to the running audiodg.exe PID; this uses real Windows audio devices.
+    #[test]
+    #[ignore = "requires the Sonar driver and a running Windows audio engine"]
+    fn device_polling_does_not_grow_audio_handles() {
+        use windows::Win32::{Foundation::CloseHandle, System::Threading::*};
+        let pid = std::env::var("SONAR_AUDIODG_PID").expect("set SONAR_AUDIODG_PID").parse().unwrap();
+        let host = cpal::default_host();
+        let old_inputs: Vec<_> = host.input_devices().unwrap().filter_map(|d| d.name().ok()).filter(|n| !n.contains("Sonar")).collect();
+        let old_outputs: Vec<_> = host.output_devices().unwrap().filter_map(|d| d.name().ok()).filter(|n| !n.contains("Sonar") || n.contains("Sonar - Microphone")).collect();
+        assert_eq!(inputs(), old_inputs);
+        assert_eq!(outputs(), old_outputs);
+        unsafe {
+            let process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).unwrap();
+            let mut before = 0;
+            GetProcessHandleCount(process, &mut before).unwrap();
+            for _ in 0..100 { inputs(); outputs(); }
+            let mut after = 0;
+            GetProcessHandleCount(process, &mut after).unwrap();
+            CloseHandle(process).unwrap();
+            // Allow small changes from other audio apps. The old polling leaked about 130 handles per iteration.
+            println!("audiodg handles after 100 device polls: {before} -> {after}");
+            assert!(after <= before + 64, "device polling grew audiodg handles: {before} -> {after}");
+        }
+    }
 
     #[test]
     fn gate_closes_on_quiet_opens_on_loud_and_holds() {
