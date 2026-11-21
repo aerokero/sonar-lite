@@ -132,6 +132,7 @@ const EN: &[(&str, &str)] = &[
     ("Kanały działają.", "Channels are available."),
     ("Włącz kanały Sonara teraz", "Switch Sonar channels on now"),
     ("Odśwież urządzenia i aplikacje", "Refresh devices and apps"),
+    ("Automatyczne przełączanie wyjścia", "Automatic output switching"),
     ("Skróty klawiszowe", "Keyboard shortcuts"),
     ("wkrótce", "coming soon"),
     ("Dane programu", "Program data"),

@@ -97,6 +97,7 @@ pub const OTHER: &[(&str, [&str; 6])] = &[
     ("Kanały działają.", ["频道可用。", "チャンネルは利用可能です。", "채널을 사용할 수 있습니다.", "Die Kanäle sind verfügbar.", "Les canaux sont disponibles.", "Los canales están disponibles."]),
     ("Włącz kanały Sonara teraz", ["立即启用 Sonar 频道", "Sonar チャンネルを今すぐ有効化", "Sonar 채널 지금 켜기", "Sonar-Kanäle jetzt einschalten", "Activer les canaux Sonar maintenant", "Activar los canales de Sonar ahora"]),
     ("Odśwież urządzenia i aplikacje", ["刷新设备和应用", "デバイスとアプリを更新", "장치 및 앱 새로 고침", "Geräte und Apps aktualisieren", "Actualiser les appareils et applications", "Actualizar dispositivos y aplicaciones"]),
+    ("Automatyczne przełączanie wyjścia", ["自动切换输出设备", "出力デバイスの自動切り替え", "출력 장치 자동 전환", "Ausgabegerät automatisch wechseln", "Changement automatique de sortie", "Cambio automático de salida"]),
     ("Skróty klawiszowe", ["键盘快捷键", "キーボードショートカット", "키보드 단축키", "Tastenkürzel", "Raccourcis clavier", "Atajos de teclado"]),
     ("wkrótce", ["即将推出", "近日公開", "곧 제공 예정", "demnächst", "bientôt", "próximamente"]),
     ("Dane programu", ["程序数据", "プログラムデータ", "프로그램 데이터", "Programmdaten", "Données du programme", "Datos del programa"]),

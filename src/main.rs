@@ -91,6 +91,7 @@ enum Act {
     SetLang(i18n::Lang),
     CloseToTray(bool),
     StartInTray(bool),
+    AutoSwitchOutput(bool),
     OpenConfigDir,
     /// hide the "Sonar not found" popup until the next start
     HideMissing,
@@ -102,6 +103,8 @@ struct App {
     chans: Vec<Chan>,
     err: Option<String>,
     mixer: mixer::Mixer,
+    nova5: nova5::Link,
+    nova5_offline: bool,
     settings: Option<&'static str>,
     device_win: Option<&'static str>,
     sel: usize,
@@ -835,17 +838,20 @@ impl App {
     /// Make `guid` the primary output of the channel (all channels when linked) and remember it at the top of the priority list.
     fn set_device(&mut self, key: &'static str, guid: &str, name: &str) {
         for k in self.prio_keys(key) {
-            let l = self.mixer.prio.entry(k.to_string()).or_default();
-            l.retain(|(g, _)| g != guid);
-            l.insert(0, (guid.to_string(), name.to_string()));
+            if self.prefs.auto_switch_output {
+                let l = self.mixer.prio.entry(k.to_string()).or_default();
+                l.retain(|(g, _)| g != guid);
+                l.insert(0, (guid.to_string(), name.to_string()));
+            }
             if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, guid); self.fail(r); self.reset.push(k); self.dirty.push(k); }
         }
-        mixer::save(&self.mixer);
+        if self.prefs.auto_switch_output { mixer::save(&self.mixer); }
     }
 
     /// Fallback: each channel plays on the first device of its priority list that is present right now.
     fn enforce_priority(&mut self) {
-        let present: Vec<String> = self.eps.iter().filter(|e| !e.virt).map(|e| e.guid.clone()).collect();
+        if !self.prefs.auto_switch_output { return; }
+        let present: Vec<String> = self.eps.iter().filter(|e| !e.virt && self.nova5.permits(&e.name)).map(|e| e.guid.clone()).collect();
         for (k, ..) in STRIPS {
             let Some(list) = self.mixer.prio.get(k) else { continue };
             if let (Some(d), Some(i)) = (mixer::desired_device(list, &present), self.idx(k)) {
@@ -1105,12 +1111,14 @@ impl App {
                 Act::AllOut(g) => {
                     let name = self.eps.iter().find(|e| e.guid == g).map(|e| e.name.clone()).unwrap_or_default();
                     for (k, ..) in STRIPS {
-                        let l = self.mixer.prio.entry(k.to_string()).or_default();
-                        l.retain(|(x, _)| *x != g);
-                        l.insert(0, (g.clone(), name.clone()));
+                        if self.prefs.auto_switch_output {
+                            let l = self.mixer.prio.entry(k.to_string()).or_default();
+                            l.retain(|(x, _)| *x != g);
+                            l.insert(0, (g.clone(), name.clone()));
+                        }
                         if let Some(i) = self.idx(k) { let r = self.chans[i].set_out(&self.hklm, &g); self.fail(r); self.reset.push(k); self.dirty.push(k); }
                     }
-                    mixer::save(&self.mixer);
+                    if self.prefs.auto_switch_output { mixer::save(&self.mixer); }
                 }
                 Act::StreamOn(on) => { self.mixer.stream_on = on; self.apply_stream(); }
                 Act::StreamDev(d) => { self.mixer.stream_dev = d; self.obs_hint = self.compute_obs_hint(); if self.mixer.stream_on { self.apply_stream() } else { mixer::save(&self.mixer) } }
@@ -1131,6 +1139,11 @@ impl App {
                     self.prefs.start_in_tray = b;
                     settings::save(&self.prefs);
                     if self.autostart { if let Err(e) = autostart::set(true, b) { self.err = Some(e.to_string()); } } // rewrite the entry with the new arguments
+                }
+                Act::AutoSwitchOutput(on) => {
+                    self.prefs.auto_switch_output = on;
+                    settings::save(&self.prefs);
+                    if on { self.refresh_devices(); }
                 }
                 Act::HideMissing => self.missing_hidden = true,
                 Act::OpenConfigDir => { let _ = std::process::Command::new("explorer").arg(settings::dir()).spawn(); }
@@ -1422,7 +1435,7 @@ impl App {
         if ui.checkbox(&mut link, tr("Połącz kanały")).changed() { acts.push(Act::Link(link)); }
         ui.label(RichText::new(tr("Przeciągnij: kolejność = priorytet")).color(WEAK).size(11.0));
         let chip = |ui: &mut egui::Ui, n: &(String, String), label: String| {
-            let present = self.eps.iter().any(|e| e.guid == n.0 && !e.virt);
+            let present = self.eps.iter().any(|e| e.guid == n.0 && !e.virt && self.nova5.permits(&e.name));
             let c = if n.0 == cur { ACCENT } else if present { Color32::WHITE } else { WEAK };
             ui.dnd_drag_source(egui::Id::new(("dev", key, &n.0)), n.0.clone(), |ui| {
                 ui.add(egui::Button::new(RichText::new(trunc(&label, 22)).size(12.0).color(c)).fill(IDLE).min_size(egui::vec2(ui.available_width(), 22.0)))
@@ -1512,7 +1525,11 @@ impl App {
                                     if row(ui, self.prefs.start_in_tray, tr("Start w zasobniku").to_string()) { acts.push(Act::StartInTray(!self.prefs.start_in_tray)); }
                                     if row(ui, self.prefs.close_to_tray, tr("Zamknięcie chowa do zasobnika").to_string()) { acts.push(Act::CloseToTray(!self.prefs.close_to_tray)); }
                                 }
-                                2 => { if ui.button(tr("Odśwież urządzenia i aplikacje")).clicked() { acts.push(Act::Refresh); } }
+                                2 => {
+                                    let on = self.prefs.auto_switch_output;
+                                    if row(ui, on, tr("Automatyczne przełączanie wyjścia")) { acts.push(Act::AutoSwitchOutput(!on)); }
+                                    if ui.button(tr("Odśwież urządzenia i aplikacje")).clicked() { acts.push(Act::Refresh); }
+                                }
                                 3 => { if ui.button(tr("Otwórz folder ustawień")).clicked() { acts.push(Act::OpenConfigDir); } }
                                 _ => { ui.label(RichText::new(format!("Sonar Lite {} (build {})", env!("CARGO_PKG_VERSION"), env!("SONAR_BUILD"))).color(WEAK).size(12.0)); }
                             }
@@ -1657,7 +1674,9 @@ impl eframe::App for App {
                 if let egui::Event::Screenshot { image, .. } = e { write_png(&path, &image); std::process::exit(0); }
             }
         }
-        if self.rows_at.elapsed() > Duration::from_secs(3) {
+        let nova5_offline = self.prefs.auto_switch_output && self.nova5.is_offline();
+        if nova5_offline != self.nova5_offline || self.rows_at.elapsed() > Duration::from_secs(3) {
+            self.nova5_offline = nova5_offline;
             if self.sonar_missing() || vad::disabled_channel_endpoints(&self.hklm).len() > 0 {
                 if self.ensure_vads() { self.reload(); }
             }
@@ -1713,7 +1732,7 @@ fn main() -> eframe::Result {
     let tray_start = std::env::args().any(|a| a == "--tray");
     let shot = std::env::args().skip_while(|a| a != "--shot").nth(1);
     let mut app = App {
-        hklm: RegKey::predef(HKEY_LOCAL_MACHINE), eps: vec![], chans: vec![], err: None, mixer: mixer::load(), settings: None, device_win: None, sel: 0,
+        hklm: RegKey::predef(HKEY_LOCAL_MACHINE), eps: vec![], chans: vec![], err: None, mixer: mixer::load(), nova5: nova5::Link::default(), nova5_offline: false, settings: None, device_win: None, sel: 0,
         bands: vec![], eq_on: true, presets: vec![], mic_presets: vec![], rows: vec![], mic_apps: vec![], rows_at: Instant::now(), pol: apps::Policy::new().ok(), dirty: vec![], reset: vec![], missing_hidden: false,
         mic_cfg: mic::load_cfg(), mic: None, mic_pending: None, mic_inputs: mic::inputs(), mic_outputs: vec![], devs: Default::default(), sh: stream::Shared::new(), stream: None, stream_pending: None, obs_hint: String::new(),
         autostart: autostart::enabled(), has_tray: false, _tray: None, tray_items: None, prefs: settings::load(), prefs_open: false,
@@ -1757,6 +1776,8 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     eframe::run_native("Sonar Lite", opts, Box::new(move |cc| {
+        let ctx = cc.egui_ctx.clone();
+        app.nova5.start(move || ctx.request_repaint());
         style(&cc.egui_ctx);
         sync_fonts(&cc.egui_ctx);
         watch_show(&cc.egui_ctx);

@@ -8,6 +8,7 @@ pub mod settings;
 pub mod autostart;
 pub mod mic;
 pub mod mixer;
+pub mod nova5;
 pub mod stream;
 mod translations;
 pub mod vad;
